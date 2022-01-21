@@ -30,8 +30,8 @@ export default function Home() {
 
   useEffect(() => {
     fetchProjects();
-    setMxPrice(localStorage.getItem("MX-PRICE"), 2);
-    setAmount(72333);
+    setMxPrice(localStorage.getItem("MX-PRICE") ?? 2);
+    setAmount(localStorage.getItem("AMOUNT") ?? 119343.85);
     // const interval = setInterval(fetchProjects, 10000);
     // return () => clearInterval(interval);
 
@@ -69,7 +69,7 @@ export default function Home() {
 
     <Row>
       <Label>Investment</Label>
-      <Input value={amount}  onChange={(e) => setMxPrice(e.target.value)}/>
+      <Input value={amount}  onChange={(e) => setAmount(e.target.value)}/>
     </Row>
 
     <Button onClick={() => {
