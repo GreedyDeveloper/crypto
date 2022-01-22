@@ -1,6 +1,11 @@
 import React, {useEffect, useState} from "react";
 import styled from "styled-components";
 import axios from 'axios';
+import {createWorker} from "tesseract.js";
+
+const worker = createWorker({
+  logger: (m) => console.log(m),
+});
 
 const now = Date.now();
 
@@ -13,19 +18,61 @@ export default function Home() {
   const fetchProjects = async () => {
     try {
       const res = await axios.get("https://api.paybook.club:8081/mexc/kick-starters");
-      setProjects(res.data.data.filter((item, i) => item.endTime > now).map(item => (
+      setProjects(res.data.data.filter((item, i) => i < 1).map(async (item) => (
         {
           name: item.profitCurrencyFullName,
           currency: item.profitCurrency,
           icon: `https://www.mexc.com//api/file/download/${item.profitCurrencyIcon}`,
           votes: item.currentVoteQuantity ?? 500,
           totalReward: item.totalSupply,
-          price: localStorage.getItem(item.profitCurrency) ?? 0,
+          price: await ExtractPrice(`https://www.mexc.com/api/file/download/${item.webProjectIntroductionEn}`, `${item.profitCurrency}+${item.profitCurrencyFullName}`)
         }
       )));
     } catch (err) {
       console.log(err);
     }
+  };
+
+  const ExtractPrice = async (imagePath, key) => {
+
+    const price = localStorage.getItem(key);
+    if(price) return price;
+
+    const base64String = await getBase64ImageFromUrl(imagePath);
+    const text = await ExtractTextFromImage(base64String);
+    const result= text.match(/\$(.*)?\)/);
+
+    return result[1] ?? 0;
+  };
+
+  const getBase64ImageFromUrl = async function (imageUrl) {
+    const res = await fetch(imageUrl);
+    const blob = await res.blob();
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", function () {
+        resolve(reader.result);
+      }, false);
+
+      reader.onerror = () => {
+        return reject(this);
+      };
+      reader.readAsDataURL(blob);
+    })
+  };
+
+  const ExtractTextFromImage = async (ImageString) => {
+    await worker.load();
+    await worker.loadLanguage("eng");
+    await worker.initialize("eng");
+    const {
+      data: {
+        text
+      },
+    } = await worker.recognize(ImageString);
+    await worker.terminate();
+    return text;
   };
 
   useEffect(() => {
@@ -39,7 +86,7 @@ export default function Home() {
 
   return <Container>
     <Greeting>Hello Shashank, Here are today&apos;s kick-starters</Greeting>
-    {projects.map(({name, currency, icon, votes, totalReward, price}, index) =>
+    {projects.map(({name, currency, icon, votes, totalReward, price, image}, index) =>
       <Row key={currency}>
         <Icon src={icon} alt={name} />
         <Column>
