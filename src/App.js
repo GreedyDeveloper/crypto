@@ -18,32 +18,40 @@ export default function Home() {
   const fetchProjects = async () => {
     try {
       const res = await axios.get("https://api.paybook.club:8081/mexc/kick-starters");
-      setProjects(res.data.data.filter((item, i) => i < 1).map(async (item) => (
-        {
-          name: item.profitCurrencyFullName,
-          currency: item.profitCurrency,
-          icon: `https://www.mexc.com//api/file/download/${item.profitCurrencyIcon}`,
-          votes: item.currentVoteQuantity ?? 500,
-          totalReward: item.totalSupply,
-          price: await ExtractPrice(`https://www.mexc.com/api/file/download/${item.webProjectIntroductionEn}`, `${item.profitCurrency}+${item.profitCurrencyFullName}`)
+      const activeProjects = res.data.data.filter((item, i) => item.endTime > now);
+      const items = [];
+      const ExtractPrice = async ({webProjectIntroductionEn, profitCurrency, profitCurrencyFullName, profitCurrencyIcon, currentVoteQuantity, totalSupply}) => {
+
+        const key = `${profitCurrency}+${profitCurrencyFullName}`;
+        let price = localStorage.getItem(key);
+        if (!price) {
+          // const base64String = await getBase64ImageFromUrl(`https://www.mexc.com/api/file/download/${webProjectIntroductionEn}`);
+          const text = await ExtractTextFromImage(`https://www.mexc.com/api/file/download/${webProjectIntroductionEn}`);
+          const result = text.match(/\$(.*)?\)/);
+          price = result[1];
+          localStorage.setItem(key, price);
         }
-      )));
+
+        items.push({
+          name: profitCurrencyFullName,
+          currency: profitCurrency,
+          icon: `https://www.mexc.com//api/file/download/${profitCurrencyIcon}`,
+          votes: currentVoteQuantity ?? 500,
+          totalReward: totalSupply,
+          price: price ?? 0
+        });
+      };
+
+      const promises = activeProjects.map(p => ExtractPrice(p));
+
+      Promise.all(promises).then(() => {
+        setProjects(items);
+      }).catch(e => console.log('Error:' + e));
     } catch (err) {
       console.log(err);
     }
   };
 
-  const ExtractPrice = async (imagePath, key) => {
-
-    const price = localStorage.getItem(key);
-    if(price) return price;
-
-    const base64String = await getBase64ImageFromUrl(imagePath);
-    const text = await ExtractTextFromImage(base64String);
-    const result= text.match(/\$(.*)?\)/);
-
-    return result[1] ?? 0;
-  };
 
   const getBase64ImageFromUrl = async function (imageUrl) {
     const res = await fetch(imageUrl);
@@ -81,7 +89,6 @@ export default function Home() {
     setAmount(localStorage.getItem("AMOUNT") ?? 119343.85);
     // const interval = setInterval(fetchProjects, 10000);
     // return () => clearInterval(interval);
-
   }, []);
 
   return <Container>
